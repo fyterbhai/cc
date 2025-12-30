@@ -8,13 +8,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import database as db
 
-st.set_page_config(page_title="📱 Instagram Auto DM Bot", layout="wide")
+st.set_page_config(page_title="Instagram Auto DM Bot", layout="wide")
 
 # Instagram URLs
 INSTAGRAM_LOGIN = 'https://www.instagram.com/accounts/login/'
 INSTAGRAM_DM = 'https://www.instagram.com/direct/inbox/'
 
-# Beautiful CSS (Instagram Pink Theme)
+# Beautiful CSS
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -42,18 +42,17 @@ h1 { color: #E4405F !important; font-weight: 800 !important; font-size: 3rem !im
 """, unsafe_allow_html=True)
 
 # Session State
-for key in ['logged_in', 'user_id', 'username', 'logs', 'automation_state']:
-    if key not in st.session_state:
-        st.session_state[key] = False if 'logged_in' in key else {} if 'automation_state' in key else []
-
-class AutomationState:
-    def __init__(self):
-        self.running = False
-        self.message_count = 0
-        self.logs = []
-        self.message_rotation_index = 0
-
-if isinstance(st.session_state.automation_state, dict):
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'user_id' not in st.session_state: st.session_state.user_id = None
+if 'username' not in st.session_state: st.session_state.username = None
+if 'logs' not in st.session_state: st.session_state.logs = []
+if 'automation_state' not in st.session_state:
+    class AutomationState:
+        def __init__(self):
+            self.running = False
+            self.message_count = 0
+            self.logs = []
+            self.message_rotation_index = 0
     st.session_state.automation_state = AutomationState()
 
 def log_message(msg, state=None):
@@ -113,8 +112,11 @@ def instagram_send_messages(config, state, user_id):
         if config['cookies'].strip():
             cookies = [c.strip() for c in config['cookies'].split(';') if '=' in c]
             for cookie in cookies:
-                name, value = cookie.split('=', 1)
-                driver.add_cookie({'name': name.strip(), 'value': value.strip(), 'domain': '.instagram.com'})
+                try:
+                    name, value = cookie.split('=', 1)
+                    driver.add_cookie({'name': name.strip(), 'value': value.strip(), 'domain': '.instagram.com'})
+                except:
+                    pass
             driver.refresh()
             time.sleep(6)
         
@@ -134,7 +136,8 @@ def instagram_send_messages(config, state, user_id):
         
         messages = [m.strip() for m in config['messages'].split('
 ') if m.strip()]
-        if not messages: messages = ['Hi!']
+        if not messages: 
+            messages = ['Hi!']
         delay = max(15, int(config['delay']))
         
         while state.running:
@@ -145,8 +148,11 @@ def instagram_send_messages(config, state, user_id):
             
             # Type message
             driver.execute_script("""
-                const el = arguments[0]; const text = arguments[1];
-                el.focus(); el.innerHTML = text; el.textContent = text;
+                const el = arguments[0]; 
+                const text = arguments[1];
+                el.focus(); 
+                el.innerHTML = text; 
+                el.textContent = text;
                 el.dispatchEvent(new Event('input', {bubbles: true}));
             """, input_field, message)
             time.sleep(2)
@@ -162,8 +168,10 @@ def instagram_send_messages(config, state, user_id):
                             driver.execute_script("arguments[0].click();", btn)
                             send_clicked = True
                             break
-                    if send_clicked: break
-                except: pass
+                    if send_clicked: 
+                        break
+                except: 
+                    pass
             
             if not send_clicked:
                 driver.execute_script("""
@@ -241,21 +249,21 @@ Hey there!'
             
             col1, col2 = st.columns(2)
             with col1:
-                st.text_input("👥 Instagram Username", key="chat_id", value=config['chat_id'],
+                chat_id = st.text_input("👥 Instagram Username", value=config['chat_id'],
                             help="Username without @ (john_doe)")
-                st.text_input("📝 Name Prefix", key="prefix", value=config['name_prefix'])
+                name_prefix = st.text_input("📝 Name Prefix", value=config['name_prefix'])
                 delay = st.number_input("⏱️ Delay (seconds)", min_value=15, value=config['delay'])
             
             with col2:
-                cookies = st.text_area("🍪 Instagram Cookies", key="cookies", value=config['cookies'], 
+                cookies = st.text_area("🍪 Instagram Cookies", value=config['cookies'], 
                                      height=120, help="F12 > Application > Cookies > Copy .instagram.com")
-                messages = st.text_area("💬 Messages (one per line)", key="msgs", value=config['messages'], 
+                messages = st.text_area("💬 Messages (one per line)", value=config['messages'], 
                                       height=120)
             
             if st.form_submit_button("💾 Save"):
-                db.update_user_config(st.session_state.user_id, st.session_state.chat_id, 
-                                    st.session_state.prefix, delay, st.session_state.cookies, st.session_state.msgs)
+                db.update_user_config(st.session_state.user_id, chat_id, name_prefix, delay, cookies, messages)
                 st.success("✅ Settings Saved!")
+                st.rerun()
         
         # Control Panel
         col1, col2, col3 = st.columns(3)
@@ -281,8 +289,9 @@ Hey there!'
         
         # Live Logs
         st.subheader("📋 Live Console")
-        for log in st.session_state.automation_state.logs[-15:] + st.session_state.logs[-15:]:
-            st.markdown(f"• {log}")
+        logs_to_show = st.session_state.automation_state.logs[-15:] + st.session_state.logs[-15:]
+        for log in logs_to_show:
+            st.text(log)
 
 st.markdown("---")
 st.markdown("<p style='text-align:center;color:#E4405F;font-weight:700;'>Made with ❤️ by YKTI RAWAT</p>", unsafe_allow_html=True)
